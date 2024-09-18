@@ -26,6 +26,16 @@ pub fn main() -> Result<(), Box<dyn Error>> {
 }
 
 trait SimpleRead: BufRead {
+    fn read_tuple<T>(&mut self) -> T
+    where
+        T: ReadableTuple,
+    {
+        let mut line = String::new();
+        self.read_line(&mut line).unwrap();
+        let mut iter = line.split_ascii_whitespace().map(|s| s.to_string());
+        T::from_iter(&mut iter)
+    }
+
     fn read_array<T, const N: usize>(&mut self) -> [T; N]
     where
         T: FromStr + Debug,
@@ -58,3 +68,33 @@ trait SimpleRead: BufRead {
 }
 
 impl<T: BufRead> SimpleRead for T {}
+
+trait ReadableTuple {
+    fn from_iter<I>(iter: &mut I) -> Self
+    where
+        I: Iterator<Item = String>;
+}
+
+macro_rules! impl_readable_tuple {
+    ($($name:ident),+) => {
+        impl<$($name),+> ReadableTuple for ($($name),+)
+        where
+            $($name: FromStr + Debug, <$name as FromStr>::Err: Debug),+
+        {
+            fn from_iter<I>(iter: &mut I) -> Self
+            where
+                I: Iterator<Item = String>,
+            {
+                (
+                    $(
+                        iter.next().expect("Not enough elements").parse::<$name>().unwrap()
+                    ),+
+                )
+            }
+        }
+    };
+}
+
+impl_readable_tuple!(T1, T2);
+impl_readable_tuple!(T1, T2, T3);
+impl_readable_tuple!(T1, T2, T3, T4);
